@@ -1,8 +1,8 @@
 ﻿﻿using System;
 using System.Collections.Generic;
 using System.Linq;
- using Microsoft.AspNetCore.Mvc;
- using ShipIt.Exceptions;
+using Microsoft.AspNetCore.Mvc;
+using ShipIt.Exceptions;
 using ShipIt.Models.ApiModels;
 using ShipIt.Repositories;
 
@@ -23,7 +23,7 @@ namespace ShipIt.Controllers
         }
 
         [HttpPost("")]
-        public void Post([FromBody] OutboundOrderRequestModel request)
+        public OutboundOrderResponse Post([FromBody] OutboundOrderRequestModel request)
         {
             Log.Info(String.Format("Processing outbound order: {0}", request));
 
@@ -43,6 +43,7 @@ namespace ShipIt.Controllers
             var lineItems = new List<StockAlteration>();
             var productIds = new List<int>();
             var errors = new List<string>();
+            var itemWeight =new List<float>();
 
             foreach (var orderLine in request.OrderLines)
             {
@@ -53,6 +54,9 @@ namespace ShipIt.Controllers
                 else
                 {
                     var product = products[orderLine.gtin];
+                    var weight = product.Weight;
+                    var quantity = orderLine.quantity;
+                    itemWeight.Add(weight*quantity);
                     lineItems.Add(new StockAlteration(product.Id, orderLine.quantity));
                     productIds.Add(product.Id);
                 }
@@ -94,6 +98,16 @@ namespace ShipIt.Controllers
             }
 
             _stockRepository.RemoveStock(request.WarehouseId, lineItems);
+            
+            var totalWeight = itemWeight.Sum();
+            int numberOfTrucks = Convert.ToInt32(Math.Ceiling(totalWeight / 2000));
+
+            var response = new OutboundOrderResponse(numberOfTrucks)
+            {
+                NumberOfTrucks = numberOfTrucks,
+            };
+
+            return response;
         }
     }
 }
